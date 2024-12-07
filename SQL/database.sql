@@ -1,0 +1,44 @@
+CREATE TABLE IF NOT EXISTS members (
+idmember INTEGER PRIMARY KEY AUTOINCREMENT,
+familyname VARCHAR(30) NOT NULL,
+name VARCHAR(20) NOT NULL,
+class VARCHAR(2) NOT NULL,
+role VARCHAR(15),
+dateinscription DATE NOT NULL,
+givenplant VARCHAR(30),
+FOREIGN KEY(planteattribuee) REFERENCES owner
+FOREIGN KEY(class) REFERENCES classname)
+
+CREATE TABLE IF NOT EXISTS plant (
+idplant INTEGER PRIMARY KEY AUTOINCREMENT,
+name VARCHAR(50),
+especes VARCHAR(50),
+status VARCHAR(20),
+location VARCHAR(50),
+humidity FLOAT,
+temperature FLOAT,
+luminosity FLOAT,
+owner VARCHAR(50),
+FOREIGN KEY(owner) REFERENCES members(idmember)
+);
+
+CREATE TABLE IF NOT EXISTS rapport ( 
+moisrapport PRIMARY KEY,
+humidity FLOAT,
+temperature FLOAT)
+
+CREATE TABLE IF NOT EXISTS classes (
+nomclasse VARCHAR(3) PRIMARY KEY AUTOINCREMENT
+)
+
+CREATE TABLE IF NOT EXISTS classe (
+idclass VARCHAR(3) PRIMARY KEY AUTOINCREMENT,
+membername VARCHAR(15),
+numberstudent INTEGER)
+
+CREATE TABLE IF NOT EXISTS INTERVENTION (
+idintervention INTEGER PRIMARY KEY AUTOINCREMENT,
+plant VARCHAR(30),
+intervant VARCHAR(70),
+mission VARCHAR(50),
+date DATE)
