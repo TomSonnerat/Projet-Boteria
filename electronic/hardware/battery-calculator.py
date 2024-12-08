@@ -1,5 +1,28 @@
 from rich.table import Table
 from rich.console import Console
+from dataclasses import dataclass, replace
+
+@dataclass
+class Frame:
+    top: str = "-"
+    left: str = "|"
+    bottom: str = "-"
+    right: str = "|"
+    top_left: str = "+"
+    top_right: str = "+"
+    bottom_left: str = "+"
+    bottom_right: str = "+"
+
+fancy_frame = Frame("─", "│", "─", "│", "╭", "╮", "╰", "╯")
+
+def frame_text(text: str, frame: Frame):
+    txt = text.split('\n')
+    txtlen = max([len(data) for data in txt])
+    finaletext = frame.top_left+frame.top*txtlen+frame.top_right+'\n'
+    for line in txt:
+        finaletext += frame.left+line+((txtlen-len(line))*' ')+frame.right+'\n'
+    finaletext += frame.bottom_left+frame.top*txtlen+frame.bottom_right
+    return finaletext
 
 def CalcConsumption(BattCapMah, Loss):
     TotalEnergy = (BattCapMah / 1000) * 1.5 * 3
@@ -17,11 +40,11 @@ def CalcConsumption(BattCapMah, Loss):
     return LifeDefault, LifeSleep, LifeMosfet, CurrentDrawDefault * 1000, CurrentDrawSleep * 1000, CurrentDrawMosfet * 1000
 
 def DisplayResults(LifeDefault, LifeSleep, LifeMosfet, CurrentDrawDefault, CurrentDrawSleep, CurrentDrawMosfet):
-    FinalTable = Table(title="Battery Life Tabme", show_lines=True)
-    FinalTable.add_column("Case")
-    FinalTable.add_column("Current Draw (mA)")
-    FinalTable.add_column("Battery Life (hours)")
-    FinalTable.add_column("Battery Life (days)")
+    FinalTable = Table(title="Battery Life Table", show_lines=True)
+    FinalTable.add_column("Case", style="cyan", justify="center")
+    FinalTable.add_column("Current Draw (mA)", style="green", justify="center")
+    FinalTable.add_column("Battery Life (hours)", style="magenta", justify="center")
+    FinalTable.add_column("Battery Life (days)", style="yellow", justify="center")
     
     FinalTable.add_row(
         "Default",
@@ -44,10 +67,15 @@ def DisplayResults(LifeDefault, LifeSleep, LifeMosfet, CurrentDrawDefault, Curre
     
     Console().print(FinalTable)
 
+print(frame_text("DESCRIPTION: \n"+('-'*40)+"\nWelcome to the Battery Life Calculator\nthis calculator will give you an average value of the battery time\nyou could esperate with the project according to the mode you've selected,\nthe mode gived in the electronic-schema is the third one.", fancy_frame))
 
-print("Welcome to the Battery Life Calculator, this calculator will give you an average value of the battery time you could esperate with the project according to the mode you've selected, the mode gived in the electronic-schema is the third one.")
+print('-'*40+'\nVariables:')
+
 BattCapMah = float(input("Enter the capacity of one battery cell (mAh): "))
 Loss = float(input("Enter the percentage of energy lost: "))
+
+print('-'*40)
+
 LifeDefault, LifeSleep, LifeMosfet, CurrentDrawDefault, CurrentDrawSleep, CurrentDrawMosfet = CalcConsumption(BattCapMah, Loss)
 
 DisplayResults(LifeDefault, LifeSleep, LifeMosfet, CurrentDrawDefault, CurrentDrawSleep, CurrentDrawMosfet)
