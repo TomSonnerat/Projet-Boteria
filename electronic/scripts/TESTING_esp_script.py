@@ -1,11 +1,8 @@
 import network
 import urequests
 import machine
-import sdcard
-import uos
 import base64
-from machine import I2C, Pin, ADC
-import dht
+import random
 import esp32_cam
 
 WiFiSSID = "SSID"
@@ -14,11 +11,9 @@ WiFiPassword = "12345"
 ReceiverIP = "192.168.1.26"
 ReceiverPort = 5000
 
-DhtPin = 14
-LightSda = 21
-LightScl = 22
-GroundHumidityPins = [33, 32, 35]
-PowerManagementPin = 27
+EmulateErrors = False
+ErrorProbability = 0.2
+SleepMs = 3600000
 
 CameraPins = {
     "PWDN": 32,
@@ -43,25 +38,6 @@ class SensorNode:
     def __init__(self):
         self.wifi = network.WLAN(network.STA_IF)
         
-        self.dhtSensor = dht.DHT11(machine.Pin(DhtPin))
-        
-        self.i2c = I2C(0, scl=Pin(LightScl), sda=Pin(LightSda))
-        
-        self.groundHumiditySensors = [ADC(Pin(pin)) for pin in GroundHumidityPins]
-        for sensor in self.groundHumiditySensors:
-            sensor.atten(ADC.ATTN_11DB)
-        
-        self.powerPin = Pin(PowerManagementPin, Pin.OUT)
-        
-        self.logCounter = 0
-        
-        try:
-            self.sd = sdcard.SDCard(machine.SPI(1), machine.Pin(5))
-            uos.mount(self.sd, '/sd')
-            uos.mkdir('/sd/sensor_logs')
-        except Exception:
-            self.sd = None
-        
         self.camera = esp32_cam.Camera(
             pin_pwdn=CameraPins["PWDN"],
             pin_reset=CameraPins["RESET"], 
@@ -84,6 +60,9 @@ class SensorNode:
             jpeg_quality=10
         )
     
+    def _simulate_sensor_error(self):
+        return EmulateErrors and random.random() < ErrorProbability
+    
     def connectWiFi(self):
         if not self.wifi.isconnected():
             self.wifi.active(True)
@@ -95,28 +74,33 @@ class SensorNode:
                 timeout -= 1
     
     def readDht11Temp(self):
-        try:
-            self.dhtSensor.measure()
-            return self.dhtSensor.temperature()
-        except Exception:
+        if self._simulate_sensor_error():
             return None
+        
+        return round(random.uniform(15, 35), 1)
     
     def readDht11Humidity(self):
-        try:
-            self.dhtSensor.measure()
-            return self.dhtSensor.humidity()
-        except Exception:
+        if self._simulate_sensor_error():
             return None
+        
+        return round(random.uniform(10, 90), 1)
     
     def readLightIntensity(self):
-        # Non complété car pas de matériel
-        return None
+        if self._simulate_sensor_error():
+            return None
+        
+        return round(random.uniform(0, 1000), 1)
     
     def readGroundHumidity(self):
-        try:
-            return [sensor.read() for sensor in self.groundHumiditySensors]
-        except Exception:
-            return [None] * len(self.groundHumiditySensors)
+        ground_humidity_readings = []
+        
+        for _ in range(3):
+            if self._simulate_sensor_error():
+                ground_humidity_readings.append(None)
+            else:
+                ground_humidity_readings.append(round(random.uniform(0, 100), 1))
+        
+        return ground_humidity_readings
     
     def captureImage(self):
         try:
@@ -129,8 +113,6 @@ class SensorNode:
             return None
     
     def sendSensorData(self):
-        self.powerPin.value(1)
-        
         temperature = self.readDht11Temp()
         humidity = self.readDht11Humidity()
         light = self.readLightIntensity()
@@ -139,10 +121,10 @@ class SensorNode:
         image_base64 = self.captureImage()
         
         sensorData = {
-            "temperature": temperature if temperature is not None else None,
-            "humidity": humidity if humidity is not None else None,
-            "light": light if light is not None else None,
-            "ground_humidity": ground_humidity if all(value is not None for value in ground_humidity) else [None] * len(ground_humidity),
+            "temperature": temperature,
+            "humidity": humidity,
+            "light": light,
+            "ground_humidity": ground_humidity,
             "image": image_base64
         }
         
@@ -150,20 +132,11 @@ class SensorNode:
             if self.wifi.isconnected():
                 url = f"http://{ReceiverIP}:{ReceiverPort}/sensor-data"
                 urequests.post(url, json=sensorData)
-            else:
-                if self.sd:
-                    self.logCounter += 1
-                    filename = f"/sd/sensor_logs/sensor_data_{self.logCounter}.txt"
-                    
-                    with open(filename, 'w') as f:
-                        f.write(str(sensorData))
         except Exception:
             pass
-        
-        self.powerPin.value(0)
     
-    def deepSleep(self, sleepMs=3600000):
-        machine.deepsleep(sleepMs)
+    def deepSleep(self):
+        machine.deepsleep(SleepMs)
 
 sensorNode = SensorNode()
 
