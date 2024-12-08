@@ -3,6 +3,7 @@ import urequests
 import machine
 import sdcard
 import uos
+import base64
 from machine import I2C, Pin, ADC
 import dht
 import esp32_cam
@@ -108,6 +109,7 @@ class SensorNode:
             return None
     
     def readLightIntensity(self):
+        # Non complété car pas de matériel
         return None
     
     def readGroundHumidity(self):
@@ -120,24 +122,28 @@ class SensorNode:
         try:
             self.camera.init()
             frame = self.camera.capture()
-            
             if frame:
-                url = f"http://{ReceiverIP}:{ReceiverPort}/upload"
-                headers = {"Content-Type": "image/jpeg"}
-                urequests.post(url, data=frame, headers=headers)
-            
-            return frame
+                return base64.b64encode(frame).decode('utf-8')
+            return None
         except Exception:
             return None
     
     def sendSensorData(self):
         self.powerPin.value(1)
         
+        temperature = self.readDht11Temp()
+        humidity = self.readDht11Humidity()
+        light = self.readLightIntensity()
+        ground_humidity = self.readGroundHumidity()
+        
+        image_base64 = self.captureImage()
+        
         sensorData = {
-            "temperature": self.readDht11Temp(),
-            "humidity": self.readDht11Humidity(),
-            "light": self.readLightIntensity(),
-            "ground_humidity": self.readGroundHumidity()
+            "temperature": temperature if temperature is not None else None,
+            "humidity": humidity if humidity is not None else None,
+            "light": light if light is not None else None,
+            "ground_humidity": ground_humidity if all(value is not None for value in ground_humidity) else [None] * len(ground_humidity),
+            "image": image_base64
         }
         
         try:
@@ -156,13 +162,12 @@ class SensorNode:
         
         self.powerPin.value(0)
     
-    def deepSleep(self, sleepMs=60000):
+    def deepSleep(self, sleepMs=360000):
         machine.deepsleep(sleepMs)
 
 sensorNode = SensorNode()
 
 while True:
     sensorNode.connectWiFi()
-    sensorNode.captureImage()
     sensorNode.sendSensorData()
     sensorNode.deepSleep()
