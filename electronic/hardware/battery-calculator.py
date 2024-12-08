@@ -1,9 +1,9 @@
-BatteryCapacityMah = 2000
-LossPercentage = 10
+from rich.table import Table
+from rich.console import Console
 
-def CalcConsumption(capacity, loss):
-    TotalEnergy = (capacity / 1000) * 1.5 * 3
-    EffectiveEnergy = TotalEnergy * (1 - loss / 100)
+def CalcConsumption(BattCapMah, Loss):
+    TotalEnergy = (BattCapMah / 1000) * 1.5 * 3
+    EffectiveEnergy = TotalEnergy * (1 - Loss / 100)
     CurrentDrawDefault = 265.62 / 1000
     CurrentDrawSleep = 105.62 / 1000
     CurrentDrawMosfet = 0.37 / 1000
@@ -14,31 +14,40 @@ def CalcConsumption(capacity, loss):
     LifeSleep = EffectiveEnergy / ConsumptionSleep
     LifeMosfet = EffectiveEnergy / ConsumptionMosfet
     
-    return LifeDefault, LifeSleep, LifeMosfet, \
-           CurrentDrawDefault * 1000, CurrentDrawSleep * 1000, CurrentDrawMosfet * 1000
+    return LifeDefault, LifeSleep, LifeMosfet, CurrentDrawDefault * 1000, CurrentDrawSleep * 1000, CurrentDrawMosfet * 1000
 
-def Main():
-    LifeDefault, LifeSleep, LifeMosfet, \
-    CurrentDrawDefault, CurrentDrawSleep, CurrentDrawMosfet = CalcConsumption(
-        BatteryCapacityMah, LossPercentage
+def DisplayResults(LifeDefault, LifeSleep, LifeMosfet, CurrentDrawDefault, CurrentDrawSleep, CurrentDrawMosfet):
+    FinalTable = Table(title="Battery Life Tabme", show_lines=True)
+    FinalTable.add_column("Case")
+    FinalTable.add_column("Current Draw (mA)")
+    FinalTable.add_column("Battery Life (hours)")
+    FinalTable.add_column("Battery Life (days)")
+    
+    FinalTable.add_row(
+        "Default",
+        str(CurrentDrawDefault),
+        str(round(LifeDefault,2)),
+        str(round(LifeDefault / 24,2))
     )
+    FinalTable.add_row(
+        "Sleep Mode",
+        str(CurrentDrawSleep),
+        str(round(LifeSleep,2)),
+        str(round(LifeSleep / 24,2))
+    )
+    FinalTable.add_row(
+        "Sleep Mode + MOSFET",
+        str(CurrentDrawMosfet),
+        str(round(LifeMosfet,2)),
+        str(round(LifeMosfet / 24,2))
+    )
+    
+    Console().print(FinalTable)
 
-    print(f"Case: Default")
-    print(f"Current draw of: {CurrentDrawDefault} mA")
-    print(f"Battery life in hours of: {LifeDefault} hours")
-    print(f"Battery life in days of: {LifeDefault / 24} days")
-    print()
 
-    print(f"Case: Sleep Mode")
-    print(f"Current draw of: {CurrentDrawSleep} mA")
-    print(f"Battery life in hours of: {LifeSleep} hours")
-    print(f"Battery life in days of: {LifeSleep / 24} days")
-    print()
+print("Welcome to the Battery Life Calculator, this calculator will give you an average value of the battery time you could esperate with the project according to the mode you've selected, the mode gived in the electronic-schema is the third one.")
+BattCapMah = float(input("Enter the capacity of one battery cell (mAh): "))
+Loss = float(input("Enter the percentage of energy lost: "))
+LifeDefault, LifeSleep, LifeMosfet, CurrentDrawDefault, CurrentDrawSleep, CurrentDrawMosfet = CalcConsumption(BattCapMah, Loss)
 
-    print(f"Case: Sleep Mode + MOSFET")
-    print(f"Current draw of: {CurrentDrawMosfet} mA")
-    print(f"Battery life in hours of: {LifeMosfet} hours")
-    print(f"Battery life in days of: {LifeMosfet / 24} days")
-
-if __name__ == "__main__":
-    Main()
+DisplayResults(LifeDefault, LifeSleep, LifeMosfet, CurrentDrawDefault, CurrentDrawSleep, CurrentDrawMosfet)
