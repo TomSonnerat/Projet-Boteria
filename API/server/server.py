@@ -5,12 +5,17 @@ import json
 import logging
 import sqlite3
 import urllib.parse
+import datetime
+import base64
 
 PORT = 5000
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 log_path = os.path.join(script_dir, "server.log")
 db_path = os.path.join(script_dir, "plant_tracking.db")
+photos_dir = os.path.join(script_dir, "plant_photos")
+
+os.makedirs(photos_dir, exist_ok=True)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -22,18 +27,126 @@ logging.basicConfig(
 )
 
 class PlantTrackingHandler(http.server.SimpleHTTPRequestHandler):
+    def do_POST(self):
+        try:
+            parsed_path = urllib.parse.urlparse(self.path)
+            path = parsed_path.path
+
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length)
+            sensor_data = json.loads(post_data.decode('utf-8'))
+
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+
+            if path == '/sensor-data':
+                cursor.execute("""
+                    SELECT Id, Plante_Principale 
+                    FROM membre 
+                    WHERE Cle_API = ?
+                """, (sensor_data['id'],))
+                member_result = cursor.fetchone()
+
+                if not member_result:
+                    self.send_error_response(404, "No member found with this sensor ID")
+                    return
+
+                member_id, main_plant_id = member_result
+                cursor.execute("""
+                    SELECT Id, Localisation 
+                    FROM plante 
+                    WHERE Superviseur = ?
+                """, (member_id,))
+                plants = cursor.fetchall()
+
+                ground_humidity = sensor_data.get('ground_humidity', [])
+
+                for i, (plant_id, _) in enumerate(plants):
+                    cursor.execute("""
+                        UPDATE plante 
+                        SET 
+                            Temperature = ?, 
+                            Luminosite = ?,
+                            Derniere_Photo = ?
+                        WHERE Id = ?
+                    """, (
+                        sensor_data['temperature'], 
+                        sensor_data['light'], 
+                        f"{plant_id}/{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.png",
+                        plant_id
+                    ))
+
+                    if i < len(ground_humidity):
+                        cursor.execute("""
+                            UPDATE plante 
+                            SET Humidite = ? 
+                            WHERE Id = ?
+                        """, (ground_humidity[i], plant_id))
+
+                    if sensor_data.get('image'):
+                        plant_photo_dir = os.path.join(photos_dir, str(plant_id))
+                        os.makedirs(plant_photo_dir, exist_ok=True)
+                        
+                        image_path = os.path.join(
+                            plant_photo_dir, 
+                            f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+                        )
+                        
+                        with open(image_path, 'wb') as image_file:
+                            image_file.write(base64.b64decode(sensor_data['image']))
+
+                    current_month = datetime.datetime.now().strftime('%Y-%m')
+                    cursor.execute("""
+                        INSERT OR REPLACE INTO rapport (
+                            Date_Rapport, 
+                            Id_Plante, 
+                            Histo_Hum, 
+                            Histo_Temp, 
+                            Histo_Lum, 
+                            Histo_Photo
+                        ) VALUES (
+                            ?, ?, 
+                            (SELECT COALESCE(Histo_Hum, '') || ',' || ? FROM rapport WHERE Date_Rapport = ? AND Id_Plante = ?), 
+                            (SELECT COALESCE(Histo_Temp, '') || ',' || ? FROM rapport WHERE Date_Rapport = ? AND Id_Plante = ?), 
+                            (SELECT COALESCE(Histo_Lum, '') || ',' || ? FROM rapport WHERE Date_Rapport = ? AND Id_Plante = ?), 
+                            ?
+                        )
+                    """, (
+                        current_month, plant_id, 
+                        ground_humidity[i] if i < len(ground_humidity) else 0, current_month, plant_id,
+                        sensor_data['temperature'], current_month, plant_id,
+                        sensor_data['light'], current_month, plant_id,
+                        f"{plant_id}/{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+                    ))
+
+                conn.commit()
+                
+                self.send_json_response({"status": "success", "plants_updated": len(plants)})
+
+            else:
+                self.send_error_response(404, "Endpoint not found")
+
+            conn.close()
+
+        except sqlite3.Error as e:
+            logging.error(f"Database error: {e}")
+            self.send_error_response(500, f"Database error: {str(e)}")
+        except json.JSONDecodeError as e:
+            logging.error(f"JSON decode error: {e}")
+            self.send_error_response(400, "Invalid JSON data")
+        except Exception as e:
+            logging.error(f"Unexpected error: {e}")
+            self.send_error_response(500, f"Unexpected server error: {str(e)}")
+    
     def do_GET(self):
         try:
-            # Parse the URL to extract the path and parameters
             parsed_path = urllib.parse.urlparse(self.path)
             path = parsed_path.path
             params = urllib.parse.parse_qs(parsed_path.query)
 
-            # Establish database connection
             conn = sqlite3.connect(db_path)
             cursor = conn.cursor()
 
-            # Route the request to the appropriate method
             if path == '/GetPlantList':
                 cursor.execute("SELECT Id, Nom FROM plante")
                 results = cursor.fetchall()
@@ -317,7 +430,7 @@ class PlantTrackingHandler(http.server.SimpleHTTPRequestHandler):
     def do_OPTIONS(self):
         self.send_response(200)
         self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, OPTIONS')
+        self.send_header('Access-Control-Allow-Methods', 'POST, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type')
         self.end_headers()
 
@@ -496,6 +609,8 @@ if __name__ == "__main__":
             logging.info("- /GetMembreInfos?id_membre={membreId}")
             logging.info("- /GetHierarchie")
             logging.info("- /GetAgendaClasse?classe={className}")
+            logging.info("ESP endpoint: /sensor-data (POST)")
+            
             httpd.serve_forever()
     except Exception as e:
         logging.critical(f"Error starting server: {e}")
