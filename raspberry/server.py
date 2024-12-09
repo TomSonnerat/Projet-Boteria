@@ -7,34 +7,33 @@ import sqlite3
 
 PORT = 5000
 
+script_dir = os.path.dirname(os.path.abspath(__file__))
+log_path = os.path.join(script_dir, "server.log")
+db_path = os.path.join(script_dir, "plant_tracking.db")
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
     handlers=[
-        logging.FileHandler("server.log"),
+        logging.FileHandler(log_path),
         logging.StreamHandler()
     ]
 )
 
-script_dir = os.path.dirname(os.path.abspath(__file__))
-db_path = os.path.join(script_dir, "plant_tracking.db")
-
 def initialize_database():
+    if os.path.exists(db_path):
+        logging.info(f"Database already exists at {db_path}. Skipping initialization.")
+        return
+
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     
-    tables = ['classe', 'membre', 'plante', 'intervention', 'rapport', 'Cartes']
-    for table in tables:
-        cursor.execute(f"DROP TABLE IF EXISTS {table}")
-    
-    cursor.execute("""
+    cursor.execute('''
+    BEGIN TRANSACTION;
     CREATE TABLE classe (
        Nom_classe VARCHAR(3) PRIMARY KEY,
        Agenda VARCHAR(255)
-    )
-    """)
-    
-    cursor.execute("""
+    );
     CREATE TABLE membre (
        Id INTEGER PRIMARY KEY AUTOINCREMENT,
        Cle_API VARCHAR(50) NOT NULL UNIQUE,
@@ -46,10 +45,7 @@ def initialize_database():
        Date_inscription VARCHAR(10) NOT NULL,
        Plante_Principale INTEGER DEFAULT NULL,
        FOREIGN KEY (Classe) REFERENCES classe(Nom_classe)
-    )
-    """)
-    
-    cursor.execute("""
+    );
     CREATE TABLE plante (
        Id INTEGER PRIMARY KEY AUTOINCREMENT,
        Nom VARCHAR(50) NOT NULL,
@@ -62,10 +58,7 @@ def initialize_database():
        Derniere_Photo VARCHAR(50) DEFAULT 'None',
        Superviseur INTEGER DEFAULT NULL,
        FOREIGN KEY (Superviseur) REFERENCES membre(Id)
-    )
-    """)
-    
-    cursor.execute("""
+    );
     CREATE TABLE intervention (
        Id INTEGER PRIMARY KEY AUTOINCREMENT,
        Date_intervention VARCHAR(20),
@@ -74,10 +67,7 @@ def initialize_database():
        Note VARCHAR(250) DEFAULT '',
        FOREIGN KEY (Id_intervenant) REFERENCES membre(Id),
        FOREIGN KEY (Id_Plante) REFERENCES plante(Id)
-    )
-    """)
-    
-    cursor.execute("""
+    );
     CREATE TABLE rapport (
        Date_Rapport VARCHAR(7) PRIMARY KEY,
        Id_Plante INTEGER DEFAULT NULL,
@@ -86,36 +76,27 @@ def initialize_database():
        Histo_Lum VARCHAR(255) DEFAULT '',
        Histo_Photo VARCHAR(50),
        FOREIGN KEY (Id_Plante) REFERENCES plante(Id)
-    )
-    """)
-    
-    cursor.execute("""
+    );
     CREATE TABLE Cartes (
        Identifier VARCHAR(50) PRIMARY KEY,
        Plantes VARCHAR(20) DEFAULT ''
-    )
-    """)
+    );
+    COMMIT;
+    ''')
     
-    cursor.execute("INSERT INTO classe (Nom_classe, Agenda) VALUES ('DE', 'Agenda DEFAULT')")
+    # Data de test
     
-    cursor.execute("""
-    INSERT INTO membre (Cle_API, Nom, Prenom, Classe, Role_Association, Photo_profil, Date_inscription, Plante_Principale) 
-    VALUES ('DEFAULT_API_KEY', 'Everyone', 'Everyone', 'DE', 'Everyone', 'everyone', '2024-01-01', NULL)
-    """)
-
-    # Code de test
-    
-    cursor.execute("""
-    INSERT INTO classe (Nom_classe, Agenda)
-    VALUES
+    cursor.execute('''
+    BEGIN TRANSACTION;
+    INSERT INTO classe (Nom_classe, Agenda) VALUES 
+    ('DE', 'Agenda DEFAULT'),
     ('1A', 'Agenda 1A'),
     ('1B', 'Agenda 1B'),
-    ('2A', 'Agenda 2A')
-    """)
-    
-    cursor.execute("""
-    INSERT INTO membre (Cle_API, Nom, Prenom, Classe, Role_Association, Photo_profil, Date_inscription, Plante_Principale)
-    VALUES
+    ('2A', 'Agenda 2A');
+
+    INSERT INTO membre (Cle_API, Nom, Prenom, Classe, Role_Association, Photo_profil, Date_inscription, Plante_Principale) 
+    VALUES 
+    ('DEFAULT_API_KEY', 'Everyone', 'Everyone', 'DE', 'Everyone', 'everyone', '2024-01-01', NULL),
     ('APIKEY1', 'Smith', 'John', '1A', 'President', 'smith.jpg', '2024-01-01', 1),
     ('APIKEY2', 'Doe', 'Jane', '1B', 'Treasurer', 'doe.jpg', '2024-01-02', 2),
     ('APIKEY3', 'Brown', 'Charlie', '2A', 'Secretary', 'brown.jpg', '2024-01-03', 3),
@@ -125,10 +106,8 @@ def initialize_database():
     ('APIKEY7', 'Martinez', 'Oliver', '1A', 'Volunteer', 'oliver.jpg', '2024-01-07', 7),
     ('APIKEY8', 'Davis', 'Amelia', '1B', 'Volunteer', 'amelia.jpg', '2024-01-08', 8),
     ('APIKEY9', 'Rodriguez', 'Mia', '2A', 'Volunteer', 'mia.jpg', '2024-01-09', 9),
-    ('APIKEY10', 'Clark', 'Lucas', '1A', 'Volunteer', 'lucas.jpg', '2024-01-10', 10)
-    """)
-    
-    cursor.execute("""
+    ('APIKEY10', 'Clark', 'Lucas', '1A', 'Volunteer', 'lucas.jpg', '2024-01-10', 10);
+
     INSERT INTO plante (Nom, Type_Plante, Statut, Localisation, Humidite, Temperature, Luminosite, Derniere_Photo, Superviseur)
     VALUES
     ('Fern', 'Indoor', 'normal', 'Localisation', 45.2, 22.5, 300, 'fern.jpg', 1),
@@ -143,35 +122,33 @@ def initialize_database():
     ('Rose', 'Flower', 'normal', 'Localisation', 30.0, 26.0, 600, 'rose.jpg', 10),
     ('Bamboo', 'Indoor', 'normal', 'Localisation', 65.0, 23.0, 150, 'bamboo.jpg', 1),
     ('Orchid', 'Flower', 'normal', 'Localisation', 55.0, 25.0, 400, 'orchid.jpg', 2),
-    ('Palm', 'Outdoor', 'normal', 'Localisation', 40.0, 28.0, 500, 'palm.jpg', 3)
-    """)
-    
-    cursor.execute("""
+    ('Palm', 'Outdoor', 'normal', 'Localisation', 40.0, 28.0, 500, 'palm.jpg', 3);
+
     INSERT INTO intervention (Date_intervention, Id_intervenant, Id_Plante, Note)
     VALUES
     ('2024-12-01', 1, 1, 'Lorem Ipsum Dolor Sit Amet'),
     ('2024-12-02', 2, 2, 'Lorem Ipsum Dolor Sit Amet'),
-    ('2024-12-03', 3, 3, 'Lorem Ipsum Dolor Sit Amet')
-    """)
-    
-    cursor.execute("""
+    ('2024-12-03', 3, 3, 'Lorem Ipsum Dolor Sit Amet');
+
     INSERT INTO rapport (Date_Rapport, Id_Plante, Histo_Hum, Histo_Temp, Histo_Lum, Histo_Photo)
     VALUES
     ('2024-01', 1, '45,46,47', '22,23,22', '300,310,320', 'fern_hist.jpg'),
     ('2024-02', 2, '15,16,14', '27,28,27', '500,520,510', 'cactus_hist.jpg'),
-    ('2024-03', 3, '60,62,59', '25,26,25', '200,210,220', 'basil_hist.jpg')
-    """)
-    
-    cursor.execute("""
+    ('2024-03', 3, '60,62,59', '25,26,25', '200,210,220', 'basil_hist.jpg');
+
     INSERT INTO Cartes (Identifier, Plantes)
     VALUES
     ('Card001', '1,2'),
     ('Card002', '3'),
-    ('Card003', '2,3')
-    """)
+    ('Card003', '2,3');
+    
+    COMMIT;
+    ''')
     
     conn.commit()
     conn.close()
+    
+    logging.info(f"Database initialized at {db_path}")
 
 class SensorDataHandler(http.server.SimpleHTTPRequestHandler):
     def do_POST(self):
