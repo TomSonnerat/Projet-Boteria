@@ -8,6 +8,8 @@ from machine import I2C, Pin, ADC
 import dht
 import esp32_cam
 
+identifier = "c7e48a2b5f93d6a4e7bf2a98"
+
 WiFiSSID = "SSID"
 WiFiPassword = "12345"
 
@@ -139,6 +141,7 @@ class SensorNode:
         image_base64 = self.captureImage()
         
         sensorData = {
+            "identifier": identifier,
             "temperature": temperature if temperature is not None else None,
             "humidity": humidity if humidity is not None else None,
             "light": light if light is not None else None,
