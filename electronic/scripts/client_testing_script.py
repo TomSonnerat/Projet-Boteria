@@ -1,40 +1,32 @@
-from flask import Flask, request, jsonify
-import os
+import http.server
+import socketserver
+import json
 
-app = Flask(__name__)
+PORT = 5000
 
-SAVE_FOLDER = "received_data"
-os.makedirs(SAVE_FOLDER, exist_ok=True)
+class SensorDataHandler(http.server.SimpleHTTPRequestHandler):
+    def do_POST(self):
+        content_length = int(self.headers['Content-Length'])
+        post_data = self.rfile.read(content_length)
+        
+        try:
+            sensor_data = json.loads(post_data.decode('utf-8'))
+            print("Received data:")
+            print(json.dumps(sensor_data, indent=4))
+            
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(b'{"status": "success"}')
+        except json.JSONDecodeError:
+            
+            self.send_response(400)
+            self.end_headers()
+            self.wfile.write(b'{"status": "error", "message": "Invalid JSON"}')
 
-@app.route('/upload', methods=['POST'])
-def upload_image():
+with socketserver.TCPServer(("", PORT), SensorDataHandler) as httpd:
+    print(f"Server port: {PORT}")
     try:
-        image = request.data
-        if image:
-            image_path = os.path.join(SAVE_FOLDER, "image.jpg")
-            with open(image_path, "wb") as img_file:
-                img_file.write(image)
-            print(f"Image received and saved to {image_path}")
-            return jsonify({"status": "success", "message": "Image received"}), 200
-        else:
-            return jsonify({"status": "error", "message": "No image"}), 400
-    except Exception as e:
-        print(f"Error receiving image: {e}")
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-@app.route('/sensor-data', methods=['POST'])
-def receive_sensor_data():
-    try:
-        sensor_data = request.json
-        if sensor_data:
-            print("Sensor data received:")
-            for key, value in sensor_data.items():
-                print(f"  {key}: {value}")
-            return jsonify({"status": "success", "message": "Sensor data received"}), 200
-        else:
-            return jsonify({"status": "error", "message": "No senso"}), 400
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
-app.run(host='192.168.1.26', port=5000)
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        httpd.server_close()

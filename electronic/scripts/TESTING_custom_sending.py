@@ -1,35 +1,24 @@
-import http.server
-import socketserver
+import requests
 import json
 
-PORT = 5000
+SERVER_URL = "http://0.0.0.0:5000/sensor-data"
 
-class SensorDataHandler(http.server.SimpleHTTPRequestHandler):
-    def do_POST(self):
-        content_length = int(self.headers['Content-Length'])
-        post_data = self.rfile.read(content_length)
-        
-        try:
-            sensor_data = json.loads(post_data.decode('utf-8'))
-            print("Received data:")
-            print(json.dumps(sensor_data, indent=4))
-            
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/json')
-            self.end_headers()
-            self.wfile.write(b'{"status": "success"}')
-        except json.JSONDecodeError:
+def send_custom_data():
+    data = {
+        "id": "test1234567890abcdef1234",
+        "temperature": 23.7,
+        "humidity": 50.4,
+        "light": 800,
+        "ground_humidity": [45, 50, 40],
+        "image": "iVBORw0KGgoAAAANSUhEUgAAAAUAAAAFCAYAAACNbyblAAAAHElEQVQI12P4//8/w38GIAXDIBKE0DHxgljNBAAO9TXL0Y4OHwAAAABJRU5ErkJggg=="
+    }
 
-            print("Invalid JSON received!")
-            self.send_response(400)
-            self.end_headers()
-            self.wfile.write(b'{"status": "error", "message": "Invalid JSON"}')
-
-# Create the server
-with socketserver.TCPServer(("", PORT), SensorDataHandler) as httpd:
-    print(f"Serving on port {PORT}...")
     try:
-        httpd.serve_forever()
-    except KeyboardInterrupt:
-        print("\nShutting down the server.")
-        httpd.server_close()
+        response = requests.post(SERVER_URL, json=data)
+        print("Response:")
+        print(response.status_code, response.text)
+    except requests.exceptions.RequestException as e:
+        print("Error: ", e)
+
+if __name__ == "__main__":
+    send_custom_data()
