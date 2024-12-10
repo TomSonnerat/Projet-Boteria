@@ -6,8 +6,8 @@ import json
 
 ServerUrl = "http://localhost:5000/sensor-data"
 TestApiKeys = [
-    "APIKEY1",
-    "APIKEY2",
+    "Card001",
+    "Card002",
 ]
 
 def GenerateTestImage():

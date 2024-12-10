@@ -40,28 +40,23 @@ class PlantTrackingHandler(http.server.SimpleHTTPRequestHandler):
             cursor = conn.cursor()
 
             if path == '/sensor-data':
+                # Check authentication using Cartes identifier
                 cursor.execute("""
-                    SELECT Id, Plante_Principale 
-                    FROM membre 
-                    WHERE Cle_API = ?
+                    SELECT c.Plantes 
+                    FROM Cartes c 
+                    WHERE c.Identifier = ?
                 """, (sensor_data['id'],))
-                member_result = cursor.fetchone()
+                card_result = cursor.fetchone()
 
-                if not member_result:
-                    self.send_error_response(404, "No member found with this sensor ID")
+                if not card_result:
+                    self.send_error_response(404, "No card found with this identifier")
                     return
 
-                member_id, main_plant_id = member_result
-                cursor.execute("""
-                    SELECT Id, Localisation 
-                    FROM plante 
-                    WHERE Superviseur = ?
-                """, (member_id,))
-                plants = cursor.fetchall()
+                # Get the list of plant IDs associated with this card
+                plant_ids = [int(pid) for pid in card_result[0].split(',')]
 
-                ground_humidity = sensor_data.get('ground_humidity', [])
-
-                for i, (plant_id, _) in enumerate(plants):
+                # Update each plant associated with the card
+                for plant_id in plant_ids:
                     cursor.execute("""
                         UPDATE plante 
                         SET 
@@ -76,13 +71,17 @@ class PlantTrackingHandler(http.server.SimpleHTTPRequestHandler):
                         plant_id
                     ))
 
-                    if i < len(ground_humidity):
+                    # Handle ground humidity if available
+                    ground_humidity = sensor_data.get('ground_humidity', [])
+                    if isinstance(ground_humidity, list) and ground_humidity:
+                        # If multiple humidity readings, use the first one
                         cursor.execute("""
                             UPDATE plante 
                             SET Humidite = ? 
                             WHERE Id = ?
-                        """, (ground_humidity[i], plant_id))
+                        """, (ground_humidity[0], plant_id))
 
+                    # Handle image saving
                     if sensor_data.get('image'):
                         plant_photo_dir = os.path.join(photos_dir, str(plant_id))
                         os.makedirs(plant_photo_dir, exist_ok=True)
@@ -95,6 +94,7 @@ class PlantTrackingHandler(http.server.SimpleHTTPRequestHandler):
                         with open(image_path, 'wb') as image_file:
                             image_file.write(base64.b64decode(sensor_data['image']))
 
+                    # Update monthly report
                     current_month = datetime.datetime.now().strftime('%Y-%m')
                     cursor.execute("""
                         INSERT OR REPLACE INTO rapport (
@@ -113,7 +113,7 @@ class PlantTrackingHandler(http.server.SimpleHTTPRequestHandler):
                         )
                     """, (
                         current_month, plant_id, 
-                        ground_humidity[i] if i < len(ground_humidity) else 0, current_month, plant_id,
+                        ground_humidity[0] if ground_humidity else 0, current_month, plant_id,
                         sensor_data['temperature'], current_month, plant_id,
                         sensor_data['light'], current_month, plant_id,
                         f"{plant_id}/{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
@@ -121,7 +121,7 @@ class PlantTrackingHandler(http.server.SimpleHTTPRequestHandler):
 
                 conn.commit()
                 
-                self.send_json_response({"status": "success", "plants_updated": len(plants)})
+                self.send_json_response({"status": "success", "plants_updated": len(plant_ids)})
 
             else:
                 self.send_error_response(404, "Endpoint not found")
@@ -137,7 +137,7 @@ class PlantTrackingHandler(http.server.SimpleHTTPRequestHandler):
         except Exception as e:
             logging.error(f"Unexpected error: {e}")
             self.send_error_response(500, f"Unexpected server error: {str(e)}")
-    
+
     def do_GET(self):
         try:
             parsed_path = urllib.parse.urlparse(self.path)
