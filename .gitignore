@@ -2,3 +2,4 @@ server.log
 API/server/plant_tracking.db
 API/server/plant_photos/*
 .venv/
+raspberry/plant_tracking.db
