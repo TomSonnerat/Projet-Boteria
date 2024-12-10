@@ -1,0 +1,9 @@
+micropython-network==1.0.0
+micropython-urequests==1.9.1
+micropython-machine==1.18.0
+micropython-base64==0.2.0
+micropython-random==0.3.1
+micropython-esp32-cam==0.1.0
+micropython-sdcard==0.5.0
+micropython-uos==1.0.1
+micropython-dht==0.2.3
