@@ -26,7 +26,6 @@
 
 ```
 plaintext
-Copier le code
 ├── Hardware/
 │   ├── ESP32-CAM/
 │   ├── Sensors/
@@ -83,8 +82,6 @@ The initial phase of the project emphasizes the **hardware aspect** to ensure ro
 - Clone the Repository
 
 ```bash
-bash
-Copier le code
 git clone https://github.com/TomSonnerat/Projet-Boteria.git
 cd Projet-Boteria
 
