@@ -5,9 +5,9 @@ import random
 import json
 
 ServerUrl = "http://localhost:5000/sensor-data"
-TestApiKeys = [
-    "Card001",
-    "Card002",
+TestBoardsIdentifiers = [
+    "Card004",
+    "Card005",
 ]
 
 def GenerateTestImage():
@@ -27,9 +27,9 @@ def GenerateTestImage():
     
     return base64.b64encode(Buffer.getvalue()).decode('utf-8')
 
-def TestSensorData(ApiKey):
+def TestSensorData(BoardIdentifier):
     TestData = {
-        "id": ApiKey,
+        "id": BoardIdentifier,
         "temperature": round(random.uniform(20.0, 30.0), 1),
         "light": random.randint(100, 1000),
         "ground_humidity": [
@@ -43,7 +43,7 @@ def TestSensorData(ApiKey):
     try:
         Response = requests.post(ServerUrl, json=TestData)
         
-        print(f"\nTesting with API Key: {ApiKey}")
+        print(f"\nTesting with API Key: {BoardIdentifier}")
         print("Request Data:")
         print(json.dumps({
             "temperature": TestData["temperature"],
@@ -66,8 +66,8 @@ def TestSensorData(ApiKey):
         print(f"Error sending request: {e}")
 
 def RunComprehensiveTests():
-    for ApiKey in TestApiKeys:
-        TestSensorData(ApiKey)
+    for BoardIdentifier in TestBoardsIdentifiers:
+        TestSensorData(BoardIdentifier)
         print("\n" + "-"*40 + "\n")
 
 def Main():
